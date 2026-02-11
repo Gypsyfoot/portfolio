@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>My Portfolio (GBP)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+  h1 {
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+  th, td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: right;
+  }
+  th:first-child, td:first-child {
+    text-align: left;
+  }
+  .manual {
+    color: #555;
+    font-style: italic;
+  }
+  .subtotal {
+    font-weight: bold;
+    background: #fafafa;
+  }
+  #totals {
+    margin-top: 20px;
+    font-size: 1.1em;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<h1>My Portfolio (£)</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Holding</th>
+      <th>Units</th>
+      <th>Price (£)</th>
+      <th>Value (£)</th>
+    </tr>
+  </thead>
+  <tbody id="portfolio"></tbody>
+</table>
+
+<div id="totals">
+  <div id="fundSubtotal"></div>
+  <div id="etfSubtotal"></div>
+  <div id="grandTotal" style="font-size:1.3em;font-weight:bold;"></div>
+</div>
+
+<button onclick="loadPrices()">Refresh Prices</button>
+
+<script>
+const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+
+// -------- HOLDINGS --------
+const holdings = [
+  {
+    name: "Artemis SmartGARP UK Equity Fund Class C Acc GBP",
+    units: 1473.492,
+    type: "manual"
+  },
+  {
+    name: "FTSE All-World UCITS ETF",
+    symbol: "VWRP.L",
+    units: 393,
+    type: "auto"
+  },
+  {
+    name: "FTSE All-World High Dividend Yield UCITS ETF",
+    symbol: "VHYG.L",
+    units: 693,
+    type: "auto"
+  }
+];
+
+// -------- STORAGE KEYS --------
+const FUND_PRICE_KEY = "artemis_price";
+const FUND_DATE_KEY  = "artemis_date";
+
+// -------- HELPERS --------
+const fmt = n => "£" + n.toLocaleString("en-GB", { minimumFractionDigits: 2 });
+
+async function getPriceGBP(symbol) {
+  const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return parseFloat(data["Global Quote"]["05. price"]);
+}
+
+function getManualFundPrice() {
+  let price = localStorage.getItem(FUND_PRICE_KEY);
+  if (!price) {
+    price = prompt("Enter latest Artemis fund NAV (GBP):");
+    if (!price) return null;
+    localStorage.setItem(FUND_PRICE_KEY, price);
+    localStorage.setItem(FUND_DATE_KEY, new Date().toLocaleDateString());
+  }
+  return parseFloat(price);
+}
+
+// -------- MAIN --------
+async function loadPrices() {
+  const tbody = document.getElementById("portfolio");
+  tbody.innerHTML = "";
+
+  let fundSubtotal = 0;
+  let etfSubtotal = 0;
+
+  for (const h of holdings) {
+    let price, value;
+
+    if (h.type === "manual") {
+      price = getManualFundPrice();
+      if (price === null) return;
+      value = price * h.units;
+      fundSubtotal += value;
+
+      const date = localStorage.getItem(FUND_DATE_KEY);
+
+      tbody.innerHTML += `
+        <tr class="manual">
+          <td>${h.name}<br><small>NAV updated: ${date}</small></td>
+          <td>${h.units.toLocaleString()}</td>
+          <td>${fmt(price)}</td>
+          <td>${fmt(value)}</td>
+        </tr>
+      `;
+    } else {
+      price = await getPriceGBP(h.symbol);
+      value = price * h.units;
+      etfSubtotal += value;
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${h.name}</td>
+          <td>${h.units.toLocaleString()}</td>
+          <td>${fmt(price)}</td>
+          <td>${fmt(value)}</td>
+        </tr>
+      `;
+    }
+  }
+
+  document.getElementById("fundSubtotal").innerText =
+    "Fund subtotal: " + fmt(fundSubtotal);
+
+  document.getElementById("etfSubtotal").innerText =
+    "ETF subtotal: " + fmt(etfSubtotal);
+
+  document.getElementById("grandTotal").innerText =
+    "Total portfolio value: " + fmt(fundSubtotal + etfSubtotal);
+}
+
+loadPrices();
+</script>
+
+</body>
+</html>
